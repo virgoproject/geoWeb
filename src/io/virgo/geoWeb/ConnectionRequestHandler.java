@@ -8,7 +8,7 @@ class ConnectionRequestHandler implements Runnable{
 	@Override
 	public void run() {
 		
-		while(true) {
+		while(!Thread.currentThread().isInterrupted()) {
 			
 			try {
 				Socket socket = GeoWeb.getInstance().getServer().accept();
@@ -17,11 +17,9 @@ class ConnectionRequestHandler implements Runnable{
 					new Thread(new Peer(socket, false)).start();
 				}
 			} catch (IOException e) {
-				e.printStackTrace();
 			}
 			
 		}
-		
 	}
 
 }

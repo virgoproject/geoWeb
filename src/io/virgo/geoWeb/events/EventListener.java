@@ -4,7 +4,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class EventListener implements Runnable {
 	
-	private boolean interrupt = false;
 	private LinkedBlockingQueue<Event> queue = new LinkedBlockingQueue<Event>();
 	
 	public void notify(Event event) {
@@ -19,7 +18,7 @@ public class EventListener implements Runnable {
 
 	@Override
 	public void run() {
-		while(!interrupt) {
+		while(!Thread.currentThread().isInterrupted()) {
 			try {
 				Event event = queue.take();
 				
@@ -44,14 +43,9 @@ public class EventListener implements Runnable {
 				}
 				
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+		        Thread.currentThread().interrupt(); // propagate interrupt
 			}
 		}
-	}
-	
-	public void interrupt() {
-		interrupt = true;
 	}
 	
 }

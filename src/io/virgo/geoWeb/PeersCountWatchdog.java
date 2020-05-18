@@ -5,7 +5,7 @@ import java.util.TimerTask;
 
 import org.json.JSONObject;
 
-class PeersCountWatchdog implements Runnable{
+class PeersCountWatchdog implements Runnable {
 
 	//TODO faire mieux que ça
 	
@@ -17,7 +17,9 @@ class PeersCountWatchdog implements Runnable{
 		JSONObject getaddrMessage = new JSONObject();
 		getaddrMessage.put("command", "getaddr");
 		
-		new Timer().scheduleAtFixedRate(new TimerTask() {//try to get new addresses every 10 minutes if desired peers count not reached
+		Timer addressBroadcastTimer = new Timer();
+		GeoWeb.getInstance().timers.add(addressBroadcastTimer);
+		addressBroadcastTimer.scheduleAtFixedRate(new TimerTask() {//try to get new addresses every 10 minutes if desired peers count not reached
 
 			@Override
 			public void run() {
@@ -32,63 +34,63 @@ class PeersCountWatchdog implements Runnable{
 	@Override
 	public void run() {
 
-		while(true) {
-			if(GeoWeb.getInstance().peers.size() < GeoWeb.getInstance().getPeerCountTarget()) {
-				switch(currentList) {
-				case 0:
-					String[] currentPeers = GeoWeb.getInstance().getPeerListManager().getCurrentPeers();
- 					
-					if(currentPeers.length > currentIndex) {
-						String[] addressArray = currentPeers[currentIndex].split(":");
-						GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1]));
-						
-						currentIndex++;
-					}else {
-						currentList = 1;
-						currentIndex = 0;
-					}
-					
-					break;
-				case 1:
-					String[] recentPeers = GeoWeb.getInstance().getPeerListManager().getRecentPeers();
-					
-					if(recentPeers.length > currentIndex) {
-						String[] addressArray = recentPeers[currentIndex].split(":");
-						GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1]));
-						
-						currentIndex++;
-					} else {
-						currentList = 2;
-						currentIndex = 0;
-					}
-					
-					break;
-				case 2:
-					String[] oldPeers = GeoWeb.getInstance().getPeerListManager().getOldPeers();
-					
-					if(oldPeers.length > currentIndex) {
-						String[] addressArray = oldPeers[currentIndex].split(":");
-						GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1]));
-						
-						currentIndex++;
-					} else {
-						currentList = 0;
-						currentIndex = 0;
-						
-						try {
-							Thread.sleep(600000L);
-						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
+		while(!Thread.currentThread().isInterrupted()) {
+			try {
+				
+				if(GeoWeb.getInstance().peers.size() < GeoWeb.getInstance().getPeerCountTarget()) {
+					switch(currentList) {
+					case 0:
+						String[] currentPeers = GeoWeb.getInstance().getPeerListManager().getCurrentPeers();
+	 					
+						if(currentPeers.length > currentIndex) {
+							String[] addressArray = currentPeers[currentIndex].split(":");
+							GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1]));
+							
+							currentIndex++;
+						}else {
+							currentList = 1;
+							currentIndex = 0;
 						}
 						
+						break;
+					case 1:
+						String[] recentPeers = GeoWeb.getInstance().getPeerListManager().getRecentPeers();
+						
+						if(recentPeers.length > currentIndex) {
+							String[] addressArray = recentPeers[currentIndex].split(":");
+							GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1]));
+							
+							currentIndex++;
+						} else {
+							currentList = 2;
+							currentIndex = 0;
+						}
+						
+						break;
+					case 2:
+						String[] oldPeers = GeoWeb.getInstance().getPeerListManager().getOldPeers();
+						
+						if(oldPeers.length > currentIndex) {
+							String[] addressArray = oldPeers[currentIndex].split(":");
+							GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1]));
+							
+							currentIndex++;
+						} else {
+							currentList = 0;
+							currentIndex = 0;
+							
+							Thread.sleep(600000L);
+							
+						}
+						
+						break;
 					}
-					
-					break;
 				}
-			}
+				
+			}catch(InterruptedException e){
+		        Thread.currentThread().interrupt(); // propagate interrupt
+		    }
 		}
-		
 	}
 
 }

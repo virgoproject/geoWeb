@@ -43,8 +43,11 @@ public class GeoWeb {
 	protected HashMap<String, Peer> peers = new HashMap<String, Peer>();
 	private int peerCountTarget;
 	private PeerListManager peerListManager;
-	private EventListener eventListener;
+	private EventListener eventsListener;
+	
 	private ThreadPoolExecutor messageThreadPool;
+	public ArrayList<Thread> threads = new ArrayList<Thread>();
+	public ArrayList<Timer> timers = new ArrayList<Timer>();
 	
 	/**
 	 * Creates a new geoWeb instance
@@ -66,7 +69,7 @@ public class GeoWeb {
 		this.port = builder.port;
 		this.netId = builder.netId;
 		this.messageHandler = builder.messageHandler;
-		this.eventListener = builder.eventListener;
+		this.eventsListener = builder.eventsListener;
 		this.peerCountTarget = builder.peerCountTarget;
 		this.keepAlivePeriod = builder.keepAlivePeriod;
 		this.keepAliveTimeout = builder.keepAliveTimeout;
@@ -82,11 +85,21 @@ public class GeoWeb {
 		
 		server = new ServerSocket(port);
 		
-		(new Thread(new ConnectionRequestHandler())).start();
-		(new Thread(new PeersCountWatchdog())).start();
-		(new Thread(eventListener)).start();
+		Thread connectionRequestsThread = new Thread(new ConnectionRequestHandler());
+		connectionRequestsThread.start();
+		threads.add(connectionRequestsThread);
 		
-		new Timer().scheduleAtFixedRate(new TimerTask() {//heartbeat
+		Thread peersCountWatchdogThread = new Thread(new PeersCountWatchdog());
+		peersCountWatchdogThread.start();
+		threads.add(peersCountWatchdogThread);
+		
+		Thread eventsListenerThread = new Thread(eventsListener);
+		eventsListenerThread.start();
+		threads.add(eventsListenerThread);
+		
+		Timer heartbeatTimer = new Timer();
+		timers.add(heartbeatTimer);
+		heartbeatTimer.scheduleAtFixedRate(new TimerTask() {//heartbeat
 
 			@Override
 			public void run() {
@@ -111,7 +124,6 @@ public class GeoWeb {
 							}
 							
 						}
-						
 					}
 					
 				}, keepAliveTimeout);
@@ -121,7 +133,33 @@ public class GeoWeb {
 		
 		long setupCompleteTime = System.nanoTime();
 		
-		eventListener.notify( new SetupCompleteEvent(setupCompleteTime-setupStartTime) );
+		eventsListener.notify( new SetupCompleteEvent(setupCompleteTime-setupStartTime) );
+	}
+	
+	/**
+	 * Disconnect peers and close all running threads
+	 * GeoWeb will stop working after calling this function
+	 */
+	public void shutdown() {
+		
+		for(Thread thread : threads)
+			thread.interrupt();
+			
+		
+		for(Timer timer : timers)
+			timer.cancel();
+		
+		for(Peer peer : peers.values())
+			peer.end();
+		
+		try {
+			server.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		messageThreadPool.shutdown();
 	}
 	
 	/**
@@ -134,8 +172,6 @@ public class GeoWeb {
 	public boolean connectTo(String hostname, int port) {
 		if(isSelf(hostname, port))
 			return false;
-			
-		System.out.println("ss"+peers.size());
 		
 		try {
 			String address = InetAddress.getByName(hostname).getHostAddress() + ":" + port;
@@ -244,7 +280,7 @@ public class GeoWeb {
 	}
 	
 	public EventListener getEventListener() {
-		return eventListener;
+		return eventsListener;
 	}
 	
 	public long getSyncMessageTimeout() {
@@ -388,7 +424,7 @@ public class GeoWeb {
 		private int maxMessageThreadPoolSize = 10;
 		private String hostname = "";
 		private MessageHandler messageHandler = null;
-		private EventListener eventListener = null;
+		private EventListener eventsListener = null;
 		
 		public GeoWeb build() throws IOException {
 			
@@ -398,8 +434,8 @@ public class GeoWeb {
 			if(messageHandler == null)
 				messageHandler = new MessageHandler();
 			
-			if(eventListener == null) {
-				eventListener = new EventListener();
+			if(eventsListener == null) {
+				eventsListener = new EventListener();
 			}
 			
 			return new GeoWeb(this);
@@ -492,7 +528,7 @@ public class GeoWeb {
 		}
 		
 		public Builder eventListener(EventListener eventListener) {
-			this.eventListener = eventListener;
+			this.eventsListener = eventListener;
 		
 			return this;
 		}

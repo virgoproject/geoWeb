@@ -84,6 +84,7 @@ public class Peer implements Runnable{
 			System.out.println(e.getMessage());
 			end();
 		}
+		System.out.println("peer exited");
 	}
 
 	public String getEffectiveAddress() {
@@ -211,13 +212,6 @@ public class Peer implements Runnable{
 		}
 		
 		GeoWeb.getInstance().getEventListener().notify(new PeerDisconnectionEvent(this));
-		
-		try {
-			this.finalize();
-		} catch (Throwable e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 	}
 	
 }
