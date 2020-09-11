@@ -14,7 +14,7 @@ public class EventListener implements Runnable {
 	public void onPeerConnection(PeerConnectionEvent event) {}
 	public void onPeerDisconnection(PeerDisconnectionEvent event) {}
 	public void onPeerHandshaked(PeerHandshakedEvent event) {}
-	
+	public void onDataRequested(DataRequestedEvent event) {}
 
 	@Override
 	public void run() {
@@ -38,6 +38,10 @@ public class EventListener implements Runnable {
 					
 				case PEER_HANDSHAKED:
 					onPeerHandshaked((PeerHandshakedEvent) event);
+					break;
+					
+				case DATA_REQUESTED:
+					onDataRequested((DataRequestedEvent) event);
 					break;
 					
 				}

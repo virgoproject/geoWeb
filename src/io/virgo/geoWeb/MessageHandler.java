@@ -7,8 +7,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import io.virgo.geoWeb.events.DataRequestedEvent;
+import io.virgo.geoWeb.events.PeerConnectionEvent;
 import io.virgo.geoWeb.events.PeerHandshakedEvent;
 import io.virgo.geoWeb.utils.AddressUtils;
+import io.virgo.virgoCryptoLib.Converter;
+import io.virgo.virgoCryptoLib.Sha256Hash;
 
 public class MessageHandler {
 
@@ -94,6 +98,11 @@ public class MessageHandler {
 				case "acceptBroadcast":
 					boolean value = messageJson.getBoolean("value");
 					peer.canBroadcast = value;
+					break;
+				case "requestData":
+					Sha256Hash dataHash = new Sha256Hash(Converter.hexToBytes(messageJson.getString("hash")));
+					GeoWeb.getInstance().getEventListener().notify(new DataRequestedEvent(dataHash, peer));
+					break;
 				}
 				
 				if(messageJson.has("respUid"))
@@ -101,7 +110,7 @@ public class MessageHandler {
 					
 				onMessage(messageJson, peer);
 			}
-		} catch(JSONException e) {
+		} catch(JSONException | IllegalArgumentException e) {
 			
 		}
 		

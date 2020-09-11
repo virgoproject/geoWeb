@@ -4,3 +4,6 @@
 /.project
 /pom.xml
 /.settings/
+/currentPeers.txt
+/oldPeers.txt
+/recentPeers.txt

@@ -1,11 +1,12 @@
 package io.virgo.geoWeb;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
 import org.json.JSONObject;
@@ -13,6 +14,9 @@ import org.json.JSONObject;
 import io.virgo.geoWeb.events.PeerConnectionEvent;
 import io.virgo.geoWeb.events.PeerDisconnectionEvent;
 import io.virgo.geoWeb.utils.AddressUtils;
+import io.virgo.geoWeb.utils.Miscellaneous;
+import io.virgo.virgoCryptoLib.Converter;
+import io.virgo.virgoCryptoLib.Sha256Hash;
 
 public class Peer implements Runnable{
 
@@ -24,9 +28,13 @@ public class Peer implements Runnable{
 	protected boolean respondedToHeartbeat;
 	private String hostname;
 	private int port;
-	private PrintWriter out;
+	private OutputStream out;
+	
+	private static byte[] JSON_MSG_IDENTIFIER = new byte[] {(byte) 0x05};
+	private static byte[] DATA_MSG_IDENTIFIER = new byte[] {(byte) 0x02};
 	
 	protected HashMap<String, JSONObject> reqResponses = new HashMap<String, JSONObject>();
+	HashMap<Sha256Hash, DataRequest> requestedData = new HashMap<Sha256Hash, DataRequest>();
 	
 	Peer(Socket socket, boolean initHandshake){
 		this.socket = socket;
@@ -44,7 +52,7 @@ public class Peer implements Runnable{
 		GeoWeb.getInstance().peers.put(getEffectiveAddress(), this);
 		
 		try {
-			out = new PrintWriter(socket.getOutputStream());
+			out = socket.getOutputStream();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -61,19 +69,66 @@ public class Peer implements Runnable{
 	public void run() {
 		
 		try {
-			BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			StringBuilder sb = new StringBuilder();
+			InputStream in = socket.getInputStream();
+			
 			while(listen) {
 				
-				int ch;
-				while((ch = in.read()) != -1) {
-					if(ch == 10) {//char is NEWLINE
-						String message = sb.toString();
-						GeoWeb.getInstance().dispatchMessageTask(new MessageTask(message,this));
-						sb.setLength(0);
-					} else {
-						sb.append((char) ch);
+				byte[] msgType = in.readNBytes(1);
+				
+				byte[] msgLengthBytes = in.readNBytes(4);
+				
+				int msgLength = ByteBuffer.wrap(msgLengthBytes).getInt();
+				
+				if(Arrays.equals(msgType, JSON_MSG_IDENTIFIER)) {
+					
+					byte[] data = new byte[msgLength];
+					
+					int received = 0;
+					
+					int readedBytes = 0;
+					
+					while(readedBytes >= 0) {
+						readedBytes = in.read(data, received, msgLength-received);
+						
+						received += readedBytes;
+						
+						if(received >= msgLength)
+							break;
 					}
+					
+					String dataString = new String(data);
+					
+					GeoWeb.getInstance().dispatchMessageTask(new MessageTask(dataString, this));
+					
+				}else if(msgType.equals(DATA_MSG_IDENTIFIER)) {
+					
+					Sha256Hash dataHash = new Sha256Hash(in.readNBytes(32));
+					
+					if(!requestedData.containsKey(dataHash))
+						throw new IOException("remote sent non requested data");
+					
+					DataRequest recipient = requestedData.get(dataHash);
+					
+					try {
+						recipient.prepare(msgLength);
+						
+						int readedBytes = 0;
+						
+						while(readedBytes >= 0) {
+							readedBytes = in.read(recipient.data, recipient.received, msgLength-recipient.received);
+							
+							recipient.received += readedBytes;
+							
+							if(recipient.received >= msgLength)
+								break;
+						}
+						
+						recipient.finish();
+					}catch(IOException e) {
+						recipient.finish();
+					}
+					
+
 				}
 				
 			}
@@ -105,10 +160,32 @@ public class Peer implements Runnable{
 	 */
 	public synchronized void sendMessage(JSONObject message) {
 		
+		byte[] msgBytes = message.toString().getBytes();
 		
-		out.println(message.toString());
-		out.flush();
+		try {
+			out.write(JSON_MSG_IDENTIFIER);
+			out.write(Miscellaneous.intToBytes(msgBytes.length));
+			out.write(msgBytes);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 			
+	}
+	
+	/**
+	 * INTERNAL FUNCTION, PLEASE DO NOT USE
+	 */
+	public void sendData(byte[] data, byte[] hash) {
+		try {
+			out.write(DATA_MSG_IDENTIFIER);
+			out.write(Miscellaneous.intToBytes(data.length));
+			out.write(hash);
+			out.write(data);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	protected void sendHandshake() {
@@ -171,6 +248,15 @@ public class Peer implements Runnable{
 		sendMessage(response);
 	}
 	
+	public void requestData(DataRequest dataReq) {
+		JSONObject reqMessage = new JSONObject();
+		reqMessage.put("command", "requestData");
+		reqMessage.put("hash", Converter.bytesToHex(dataReq.getHash().toBytes()));
+		
+		sendMessage(reqMessage);
+		
+	}
+	
 	public boolean isClosed() {
 		return socket.isClosed();
 	}
@@ -199,7 +285,12 @@ public class Peer implements Runnable{
 	
 	public void end() {
 		listen = false;
-		out.close();
+		try {
+			out.close();
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
 		
 		System.out.println(GeoWeb.getInstance().peers.size());
 		GeoWeb.getInstance().peers.remove(getEffectiveAddress());
