@@ -1,5 +1,8 @@
 package io.virgo.geoWeb;
 
+/**
+ * Runnable representing a received message, will process it using the message handler class
+ */
 public class MessageTask implements Runnable {
 
 	private String message;

@@ -8,6 +8,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 
+/**
+ * Utility to manipulate geoweb's peers list
+ */
 public class PeerListManager {
 
 	private File currentPeersFile;
@@ -34,8 +37,8 @@ public class PeerListManager {
 		}
 		
 		
-		//load addresses into arraylists
-		try (BufferedReader br = new BufferedReader(new FileReader(currentPeersFile))) {//current
+		//read files and load addresses into corresponding arraylists 
+		try (BufferedReader br = new BufferedReader(new FileReader(currentPeersFile))) {//current peers
 		    String address;
 		    while ((address = br.readLine()) != null) {
 		       
@@ -52,7 +55,7 @@ public class PeerListManager {
 			e.printStackTrace();
 		}
 		
-		try (BufferedReader br = new BufferedReader(new FileReader(recentPeersFile))) {//recent
+		try (BufferedReader br = new BufferedReader(new FileReader(recentPeersFile))) {//recent peers
 		    String address;
 		    while ((address = br.readLine()) != null) {
 		       
@@ -69,7 +72,7 @@ public class PeerListManager {
 			e.printStackTrace();
 		}
 		
-		try (BufferedReader br = new BufferedReader(new FileReader(oldPeersFile))) {//old
+		try (BufferedReader br = new BufferedReader(new FileReader(oldPeersFile))) {//old peers
 		    String address;
 		    while ((address = br.readLine()) != null) {
 		       

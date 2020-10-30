@@ -3,6 +3,10 @@ package io.virgo.geoWeb;
 import java.io.IOException;
 import java.net.Socket;
 
+/**
+ * Runnable handling connection requests
+ * Create a new {@link Peer} instance if no corresponding current peer found
+ */
 class ConnectionRequestHandler implements Runnable{
 	
 	@Override

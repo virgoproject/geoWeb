@@ -1,5 +1,8 @@
 package io.virgo.geoWeb;
 
+/**
+ * Enum of response codes used in GeoWeb, based on HTTP ones
+ */
 public enum ResponseCode {
 	
 	OK(200, "OK"),
@@ -26,6 +29,11 @@ public enum ResponseCode {
 		return desc;
 	}
 	
+	/**
+	 * Get ENUM response code from numeral representation
+	 * @param code the code to get as an ENUM
+	 * @return the corresponding ENUM
+	 */
 	public static ResponseCode fromCode(int code) {
 		switch(code) {
 		case 200:

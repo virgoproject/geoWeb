@@ -23,10 +23,12 @@ public class MessageHandler {
 			
 			JSONObject messageJson = new JSONObject(message);
 			
+			//Handshake logic
 			if(messageJson.getString("command").equals("handshake")) {
 				if(peer.handshaked)
 					return;
 				
+				//Check if peer is part of the same network by comparing netIds
 				if(!messageJson.has("id") || messageJson.getLong("id") != GeoWeb.getInstance().getNetId()) {
 					peer.end();
 					return;
@@ -38,13 +40,16 @@ public class MessageHandler {
 				if(messageJson.has("port"))
 					peer.setPort(messageJson.getInt("port"));
 				
+				//add peer to list of active ones
 				GeoWeb.getInstance().getPeerListManager().addPeer(peer.getAddress(), 0);
 				peer.handshaked = true;
 				peer.respondedToHeartbeat = true;//in case a heartbeat as been sent during setup
 				
+				//Exclude peer from broadcast if it wants to
 				if(messageJson.has("acceptsBroadcast") && !messageJson.getBoolean("acceptsBroadcast"))
 					peer.canBroadcast = false;	
 				
+				//Send handshake if not done yet
 				if(!peer.sentHandshake)
 					peer.sendHandshake();
 				
@@ -64,6 +69,11 @@ public class MessageHandler {
 						peer.respondToMessage(response, messageJson);				
 					}
 					break;
+					
+				/*
+				* Peer gives us a list of the peers it knows,
+				* add them to list and try to connect to them if peer count target hasn't been reached
+				*/
 				case "addr":
 					JSONArray addresses = messageJson.getJSONArray("addresses");
 					for(int i = 0; i < addresses.length(); i++) {
@@ -87,27 +97,34 @@ public class MessageHandler {
 						
 					}
 					break;
+					
+				//Heartbeat, simply respond to ping with pong
 				case "ping":
 					JSONObject pongMessage = new JSONObject();
 					pongMessage.put("command", "pong");
 					peer.respondToMessage(pongMessage, messageJson);
 					break;
+				//Peer responded to our heartbeat
 				case "pong":
 					peer.respondedToHeartbeat = true;
 					break;
+				//Peer now accepts broadcasting
 				case "acceptBroadcast":
 					boolean value = messageJson.getBoolean("value");
 					peer.canBroadcast = value;
 					break;
+				//Peer is requesting data
 				case "requestData":
 					Sha256Hash dataHash = new Sha256Hash(Converter.hexToBytes(messageJson.getString("hash")));
 					GeoWeb.getInstance().getEventListener().notify(new DataRequestedEvent(dataHash, peer));
 					break;
 				}
 				
+				//Check if message has a respUid, if so it's a sync message: Fill SyncMessageresponse with message
 				if(messageJson.has("respUid"))
 					peer.reqResponses.put(messageJson.getString("respUid"), messageJson);
-					
+				
+				//Execute overridable logic
 				onMessage(messageJson, peer);
 			}
 		} catch(JSONException | IllegalArgumentException e) {

@@ -10,6 +10,11 @@ import java.util.regex.Pattern;
 
 public class AddressUtils {
 
+	/**
+	 * Check if an hostname is valid
+	 * @param hostname the hostname to check
+	 * @return true if valid, false otherwise
+	 */
 	public static boolean isValidHostname(String hostname) {
         Pattern p = Pattern.compile("^"
                 + "(((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}" // Domain name

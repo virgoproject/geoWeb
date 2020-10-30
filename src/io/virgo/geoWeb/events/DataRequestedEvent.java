@@ -5,6 +5,9 @@ import io.virgo.geoWeb.DataRequest;
 import io.virgo.virgoCryptoLib.Sha256;
 import io.virgo.virgoCryptoLib.Sha256Hash;
 
+/**
+ * Event occurring when a peer is asking for data
+ */
 public class DataRequestedEvent extends Event {
 
 	DataRequest request;
@@ -19,6 +22,11 @@ public class DataRequestedEvent extends Event {
 		
 	}
 
+	/**
+	 * Give the requested data to the peer
+	 * @param data
+	 * @throws IllegalArgumentException Given data and requested data hashes doesn't match
+	 */
 	public void uploadData(byte[] data) {
 		if(!Sha256.getHash(data).equals(request.getHash()))
 			throw new IllegalArgumentException("Given data doesn't fit requested one");
@@ -26,6 +34,9 @@ public class DataRequestedEvent extends Event {
 		peer.sendData(data, hash.toBytes());
 	}
 
+	/**
+	 * @return The requested data hash
+	 */
 	public Sha256Hash getHash() {
 		return hash;
 	}

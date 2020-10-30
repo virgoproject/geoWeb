@@ -60,12 +60,23 @@ public class GeoWeb {
 	 * @throws PortUnavailableException The given port is used
 	 * @throws IllegalArgumentException The given port is invalid (out of range) or messageHandler is null
 	 * @throws IOException can't create a server instance
+	 * 
+	 * <p>
+	 * Usage:<br><br>
+	 * {@code GeoWeb net = new GeoWeb.Builder()}<br>
+	 * {@code .netID(2946073207412533257l)}<br>
+	 * {@code .eventListener(new EventListener())}<br>
+	 * {@code .messageHandler(new MessageHandler())}<br>
+	 * {@code .port(1234)}<br>
+	 * {@code .build();}
+	 * <p>
 	 */
 	private GeoWeb(Builder builder) throws IOException {
 		instance = this;
 		
 		long setupStartTime = System.nanoTime();
 		
+		//set parameters from Builder
 		this.port = builder.port;
 		this.netId = builder.netId;
 		this.messageHandler = builder.messageHandler;
@@ -77,6 +88,7 @@ public class GeoWeb {
 		this.messageThreadKeepAliveTime = builder.messageThreadKeepAliveTime;
 		this.maxMessageThreadPoolSize = builder.maxMessageThreadPoolSize;
 		this.hostname = builder.hostname;
+		
 		
 		messageThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxMessageThreadPoolSize);
 		messageThreadPool.setKeepAliveTime(messageThreadKeepAliveTime, TimeUnit.MILLISECONDS);
@@ -97,6 +109,10 @@ public class GeoWeb {
 		eventsListenerThread.start();
 		threads.add(eventsListenerThread);
 		
+		/**
+		 * Send a message to all peers every x seconds and wait for their response to see if they are still alive
+		 * if not disconnected from them
+		 */
 		Timer heartbeatTimer = new Timer();
 		timers.add(heartbeatTimer);
 		heartbeatTimer.scheduleAtFixedRate(new TimerTask() {//heartbeat
@@ -188,12 +204,16 @@ public class GeoWeb {
 		
 	}
 	
+	/**
+	 * @return the list of known active peers
+	 */
 	public ArrayList<String> getCurrentPeersAddresses() {
 		return getCurrentPeersAddresses(new ArrayList<Peer>());
 	}
 	
 	/**
-	 * @return the list of known active peers addresses
+	 * @param peersToIgnore A list of peers to exclude from result
+	 * @return the list of known active peers
 	 */
 	public ArrayList<String> getCurrentPeersAddresses(List<Peer> peersToIgnore) {
 		ArrayList<String> addresses = new ArrayList<String>();
@@ -217,7 +237,7 @@ public class GeoWeb {
 	 * Send a message to all connected peers
 	 * 
 	 * @param message The message to send
-	 * 
+	 * <br>
 	 * The Json object must contain a string parameter called 'command' (witch is the subject of your message)
 	 * otherwise it will be ignored by peers
 	 */
@@ -382,7 +402,7 @@ public class GeoWeb {
 
 	/**
 	 * 
-	 * @param maxMessageThreadPoolSize must be > 0
+	 * @param maxMessageThreadPoolSize Maximal number of threads GeoWeb will use to handle messages, must be > 0
 	 */
 	public void setMaxMessageThreadPoolSize(int maxMessageThreadPoolSize) {
 		if(maxMessageThreadPoolSize < 1)
@@ -404,6 +424,12 @@ public class GeoWeb {
 		this.hostname = hostname;
 	}
 	
+	/**
+	 * Check if given IP address and port correspond to this geoWeb instance
+	 * @param host IP address to check
+	 * @param port Port to check
+	 * @return <b>true</b> if given IP address and port correspond to this geoWeb instance, otherwise <b>false</b>
+	 */
 	public boolean isSelf(String host, int port) {
 		try {
 			return AddressUtils.isThisMyIpAddress(InetAddress.getByName(host)) && port == getPort();

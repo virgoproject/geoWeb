@@ -18,6 +18,9 @@ import io.virgo.geoWeb.utils.Miscellaneous;
 import io.virgo.virgoCryptoLib.Converter;
 import io.virgo.virgoCryptoLib.Sha256Hash;
 
+/**
+ * Runnable representing connection to a peer
+ */
 public class Peer implements Runnable{
 
 	private Socket socket;
@@ -65,6 +68,12 @@ public class Peer implements Runnable{
 		GeoWeb.getInstance().getEventListener().notify(new PeerConnectionEvent(this));
 	}
 	
+	/**
+	 * Listen to input stream and try to parse messages from it
+	 * First Byte of a message is it's type, either JSON or Data request
+	 * Four next bytes are the body length, or how much bytes we need to read next to reach end of message
+	 * 
+	 */
 	@Override
 	public void run() {
 		
@@ -79,6 +88,7 @@ public class Peer implements Runnable{
 				
 				int msgLength = ByteBuffer.wrap(msgLengthBytes).getInt();
 				
+				//Message is JSON, read then create messageTask and dispatch it to threadPool
 				if(Arrays.equals(msgType, JSON_MSG_IDENTIFIER)) {
 					
 					byte[] data = new byte[msgLength];
@@ -99,7 +109,11 @@ public class Peer implements Runnable{
 					String dataString = new String(data);
 					
 					GeoWeb.getInstance().dispatchMessageTask(new MessageTask(dataString, this));
-					
+				
+					/* Message is a data request, next 32 bytes are the data hash
+					 * if the hash doesn't correspond to any requested data throw an Exception and terminate connection
+					 * Otherwise read the rest of the message and populate corresponding DataRequest
+					 */
 				}else if(msgType.equals(DATA_MSG_IDENTIFIER)) {
 					
 					Sha256Hash dataHash = new Sha256Hash(in.readNBytes(32));
@@ -174,7 +188,7 @@ public class Peer implements Runnable{
 	}
 	
 	/**
-	 * INTERNAL FUNCTION, PLEASE DO NOT USE
+	 * Output data to peer to respond to data request, please use DataRequestedEvent.uploadData(byte[] data) instead
 	 */
 	public void sendData(byte[] data, byte[] hash) {
 		try {
@@ -188,6 +202,9 @@ public class Peer implements Runnable{
 		}
 	}
 	
+	/**
+	 * Send handshake to peer to finish setup
+	 */
 	protected void sendHandshake() {
 		JSONObject netIdMessage = new JSONObject();
 		netIdMessage.put("command", "handshake");
@@ -236,11 +253,23 @@ public class Peer implements Runnable{
 		return new SyncMessageResponse(ResponseCode.UNKNOWN_CODE, responseJSON);
 	}
 	
+	/**
+	 * Respond to a SyncMessage
+	 * @param response your response as a JSONObject
+	 * @param responseTo the message you want to respond to
+	 * @param code The response Code
+	 */
 	public void respondToMessage(JSONObject response, JSONObject responseTo, ResponseCode code) {
 		response.put("reqRespCode", code.getCode());
 		respondToMessage(response, responseTo);
 	}
 	
+	
+	/**
+	 * Respond to a SyncMessage
+	 * @param response your response as a JSONObject
+	 * @param responseTo the message you want to respond to
+	 */
 	public void respondToMessage(JSONObject response, JSONObject responseTo) {
 		if(responseTo.has("reqUid"))
 			response.put("respUid", responseTo.get("reqUid"));
@@ -248,6 +277,10 @@ public class Peer implements Runnable{
 		sendMessage(response);
 	}
 	
+	/**
+	 * Send a data request to peer
+	 * @param dataReq the data you want
+	 */
 	public void requestData(DataRequest dataReq) {
 		JSONObject reqMessage = new JSONObject();
 		reqMessage.put("command", "requestData");
@@ -283,6 +316,9 @@ public class Peer implements Runnable{
 		return port;
 	}
 	
+	/**
+	 * End connection to peer
+	 */
 	public void end() {
 		listen = false;
 		try {
