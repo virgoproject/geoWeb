@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +25,10 @@ import io.virgo.geoWeb.exceptions.PortUnavailableException;
 import io.virgo.geoWeb.utils.AddressUtils;
 import io.virgo.geoWeb.utils.PeerListManager;
 
+/**
+ * Virgo's Peer to Peer communication library
+ * Main class
+ */
 public class GeoWeb {
 	
 	private static GeoWeb instance;
@@ -38,9 +42,13 @@ public class GeoWeb {
 	private int maxMessageThreadPoolSize;
 	private String hostname;
 	
+	private String id;
+	
 	private ServerSocket server;
 	private MessageHandler messageHandler;
 	protected HashMap<String, Peer> peers = new HashMap<String, Peer>();
+	protected HashMap<String, Peer> pendingPeers = new HashMap<String, Peer>();
+	protected ArrayList<String> blockedPeers = new ArrayList<String>();
 	private int peerCountTarget;
 	private PeerListManager peerListManager;
 	private EventListener eventsListener;
@@ -50,26 +58,7 @@ public class GeoWeb {
 	public ArrayList<Timer> timers = new ArrayList<Timer>();
 	
 	/**
-	 * Creates a new geoWeb instance
-	 * 
-	 * @param port the port to use for communication
-	 * @param netId a unique number wich identify your app network
-	 * @param messageHandler a messageHandler instance (or a class instance that extends it)
-	 * @param peerCountTarget the number of peers you tend to have
-	 * 
-	 * @throws PortUnavailableException The given port is used
-	 * @throws IllegalArgumentException The given port is invalid (out of range) or messageHandler is null
-	 * @throws IOException can't create a server instance
-	 * 
-	 * <p>
-	 * Usage:<br><br>
-	 * {@code GeoWeb net = new GeoWeb.Builder()}<br>
-	 * {@code .netID(2946073207412533257l)}<br>
-	 * {@code .eventListener(new EventListener())}<br>
-	 * {@code .messageHandler(new MessageHandler())}<br>
-	 * {@code .port(1234)}<br>
-	 * {@code .build();}
-	 * <p>
+	 * create geoWeb instance from builder parameters
 	 */
 	private GeoWeb(Builder builder) throws IOException {
 		instance = this;
@@ -89,6 +78,8 @@ public class GeoWeb {
 		this.maxMessageThreadPoolSize = builder.maxMessageThreadPoolSize;
 		this.hostname = builder.hostname;
 		
+		//generate a unique ID for this geoWeb session, will serve to know when we try to connect to ourselves
+		id = UUID.randomUUID().toString();
 		
 		messageThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxMessageThreadPoolSize);
 		messageThreadPool.setKeepAliveTime(messageThreadKeepAliveTime, TimeUnit.MILLISECONDS);
@@ -186,12 +177,17 @@ public class GeoWeb {
 	 * @return true if connected, false otherwise
 	 */
 	public boolean connectTo(String hostname, int port) {
-		if(isSelf(hostname, port))
+		
+		System.out.println("trying to connect to " + hostname + ":" + port);
+		
+		if(blockedPeers.contains(hostname+":"+port))
 			return false;
+		
+		System.out.println("connecting");
 		
 		try {
 			String address = InetAddress.getByName(hostname).getHostAddress() + ":" + port;
-			if(!peers.containsKey(address)) {
+			if(!peers.containsKey(address) && !pendingPeers.containsKey(address)) {
 				Socket socket = new Socket(InetAddress.getByName(hostname), port);
 				new Thread(new Peer(socket, true)).start();
 				return true;
@@ -222,7 +218,7 @@ public class GeoWeb {
 		
 		for(Peer peer : peersMap.values()) {
 			if(!peersToIgnore.contains(peer)) {
-				addresses.add(peer.getAddress());
+				addresses.add(peer.getEffectiveAddress());
 			}
 		}
 		
@@ -316,6 +312,13 @@ public class GeoWeb {
 			throw new IllegalArgumentException("sync message response timeout must be >= 100");
 		
 		this.syncMessageTimeout = syncMessageTimeout;
+	}
+	
+	/**
+	 * @return The ID of this geoWeb session
+	 */
+	public String getId() {
+		return id;
 	}
 	
 	/**
@@ -430,14 +433,30 @@ public class GeoWeb {
 	 * @param port Port to check
 	 * @return <b>true</b> if given IP address and port correspond to this geoWeb instance, otherwise <b>false</b>
 	 */
-	public boolean isSelf(String host, int port) {
+	/**public boolean isSelf(String host, int port) {
 		try {
+			System.out.println("Is self "+host+":"+port+" ? " + AddressUtils.isThisMyIpAddress(InetAddress.getByName(host)) + " " + (port == getPort()));
 			return AddressUtils.isThisMyIpAddress(InetAddress.getByName(host)) && port == getPort();
 		} catch (UnknownHostException e) {
+			System.out.println(e.getMessage());
 			return false;
 		}
-	}	
+	}*/
 	
+	/**
+	 * New geoWeb instance builder
+	 * 
+	 * <p>
+	 * Example:<br><br>
+	 * {@code GeoWeb net = new GeoWeb.Builder()}<br>
+	 * {@code .netID(2946073207412533257l)}<br>
+	 * {@code .eventListener(new EventListener())}<br>
+	 * {@code .messageHandler(new MessageHandler())}<br>
+	 * {@code .port(1234)}<br>
+	 * {@code .build();}
+	 * <p>
+	 * 
+	 */
 	public static class Builder {
 		
 		private int port = 25565;

@@ -8,7 +8,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import io.virgo.geoWeb.events.DataRequestedEvent;
-import io.virgo.geoWeb.events.PeerConnectionEvent;
 import io.virgo.geoWeb.events.PeerHandshakedEvent;
 import io.virgo.geoWeb.utils.AddressUtils;
 import io.virgo.virgoCryptoLib.Converter;
@@ -29,16 +28,31 @@ public class MessageHandler {
 					return;
 				
 				//Check if peer is part of the same network by comparing netIds
-				if(!messageJson.has("id") || messageJson.getLong("id") != GeoWeb.getInstance().getNetId()) {
+				if(!messageJson.has("netId") || messageJson.getLong("netId") != GeoWeb.getInstance().getNetId()) {
 					peer.end();
 					return;
 				}
+				
+				//remove peer from pendingPeers before effectiveAddress port changes
+				GeoWeb.getInstance().pendingPeers.remove(peer.getEffectiveAddress());
 				
 				if(messageJson.has("hostname"))
 					peer.setHostname(messageJson.getString("hostname"));
 				
 				if(messageJson.has("port"))
 					peer.setPort(messageJson.getInt("port"));
+				
+				//check if peer has the same session ID as us, if so end connection because we're probably try to connect to ourselves
+				if(messageJson.has("id")) {
+					if(messageJson.getString("id").equals(GeoWeb.getInstance().getId())) {
+						GeoWeb.getInstance().blockedPeers.add(peer.getEffectiveAddress());
+						peer.end();
+						return;
+					}
+				}else {
+					peer.end();
+					return;
+				}
 				
 				//add peer to list of active ones
 				GeoWeb.getInstance().getPeerListManager().addPeer(peer.getAddress(), 0);
@@ -52,6 +66,9 @@ public class MessageHandler {
 				//Send handshake if not done yet
 				if(!peer.sentHandshake)
 					peer.sendHandshake();
+				
+				//add peer to list of ready ones
+				GeoWeb.getInstance().peers.put(peer.getEffectiveAddress(), peer);
 				
 				GeoWeb.getInstance().getEventListener().notify(new PeerHandshakedEvent(peer));
 				
@@ -80,15 +97,11 @@ public class MessageHandler {
 						String peerAddress = addresses.getString(i);
 						if(AddressUtils.isValidHostnameAndPort(peerAddress)) {
 							String[] peerAddressArray = peerAddress.split(":");
-							if(!GeoWeb.getInstance().isSelf(peerAddressArray[0], Integer.parseInt(peerAddressArray[1]))){
-								
-								if(GeoWeb.getInstance().peers.size() < GeoWeb.getInstance().getPeerCountTarget() && !GeoWeb.getInstance().peers.containsKey(peerAddress)) {
-									GeoWeb.getInstance().connectTo(peerAddressArray[0], Integer.parseInt(peerAddressArray[1]));
-									GeoWeb.getInstance().getPeerListManager().addPeer(peerAddress, 0);
-								} else {
-									GeoWeb.getInstance().getPeerListManager().addPeer(peerAddress, 1);
-								}
-								
+							if(GeoWeb.getInstance().peers.size() < GeoWeb.getInstance().getPeerCountTarget() && !GeoWeb.getInstance().peers.containsKey(peerAddress)) {
+								GeoWeb.getInstance().connectTo(peerAddressArray[0], Integer.parseInt(peerAddressArray[1]));
+								GeoWeb.getInstance().getPeerListManager().addPeer(peerAddress, 0);
+							} else {
+								GeoWeb.getInstance().getPeerListManager().addPeer(peerAddress, 1);
 							}
 						}
 						

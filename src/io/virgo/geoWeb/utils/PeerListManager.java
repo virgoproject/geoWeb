@@ -101,6 +101,7 @@ public class PeerListManager {
 					FileWriter writer = new FileWriter(currentPeersFile); 
 					for(String peer : currentPeers) {
 					  writer.write(peer);
+					  writer.write(System.getProperty("line.separator"));
 					}
 					writer.close();
 				} catch (IOException e) {
@@ -115,6 +116,7 @@ public class PeerListManager {
 					FileWriter writer = new FileWriter(recentPeersFile); 
 					for(String peer : recentPeers) {
 					  writer.write(peer);
+					  writer.write(System.getProperty("line.separator"));
 					}
 					writer.close();
 				} catch (IOException e) {
@@ -129,6 +131,7 @@ public class PeerListManager {
 					FileWriter writer = new FileWriter(oldPeersFile); 
 					for(String peer : currentPeers) {
 					  writer.write(peer);
+					  writer.write(System.getProperty("line.separator"));
 					}
 					writer.close();
 				} catch (IOException e) {

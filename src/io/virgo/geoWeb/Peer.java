@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.nio.BufferUnderflowException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
@@ -51,9 +52,7 @@ public class Peer implements Runnable{
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-		
-		GeoWeb.getInstance().peers.put(getEffectiveAddress(), this);
-		
+
 		try {
 			out = socket.getOutputStream();
 		} catch (IOException e) {
@@ -64,6 +63,8 @@ public class Peer implements Runnable{
 		if(initHandshake) {
 			sendHandshake();
 		}
+		
+		GeoWeb.getInstance().pendingPeers.put(getEffectiveAddress(), this);
 		
 		GeoWeb.getInstance().getEventListener().notify(new PeerConnectionEvent(this));
 	}
@@ -149,15 +150,13 @@ public class Peer implements Runnable{
 			
 			in.close();
 			
-		} catch (IOException e) {
-			System.out.println(e.getMessage());
-			end();
-		}
-		System.out.println("peer exited");
+		} catch (IOException | BufferUnderflowException e) {}
+		
+		end();
 	}
 
 	public String getEffectiveAddress() {
-		return socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
+		return socket.getInetAddress().getHostAddress() + ":" + getPort();
 	}
 	
 	public boolean handshakeDone() {
@@ -208,7 +207,8 @@ public class Peer implements Runnable{
 	protected void sendHandshake() {
 		JSONObject netIdMessage = new JSONObject();
 		netIdMessage.put("command", "handshake");
-		netIdMessage.put("id", GeoWeb.getInstance().getNetId());
+		netIdMessage.put("netId", GeoWeb.getInstance().getNetId());
+		netIdMessage.put("id", GeoWeb.getInstance().getId());
 		
 		if(!GeoWeb.getInstance().getHostname().equals(""))
 			netIdMessage.put("hostname", GeoWeb.getInstance().getHostname());
@@ -320,6 +320,7 @@ public class Peer implements Runnable{
 	 * End connection to peer
 	 */
 	public void end() {
+		
 		listen = false;
 		try {
 			out.close();
@@ -328,10 +329,9 @@ public class Peer implements Runnable{
 			e1.printStackTrace();
 		}
 		
-		System.out.println(GeoWeb.getInstance().peers.size());
 		GeoWeb.getInstance().peers.remove(getEffectiveAddress());
-		System.out.println(GeoWeb.getInstance().peers.size());
-
+		GeoWeb.getInstance().pendingPeers.remove(getEffectiveAddress());
+		
 		try {
 			socket.close();
 		} catch (IOException e) {

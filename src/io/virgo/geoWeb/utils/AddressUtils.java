@@ -2,10 +2,7 @@ package io.virgo.geoWeb.utils;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.net.ServerSocket;
-import java.net.SocketException;
 import java.util.regex.Pattern;
 
 public class AddressUtils {
@@ -96,24 +93,6 @@ public class AddressUtils {
 	 */
 	public static boolean isValidPort(int port) {
 		return !(port < 1 || port > 65535);
-	}
-	
-	/**
-	 * Check if InetAddress point to this machine
-	 * @param addr the InetAddress to ruhn the check on
-	 * @return true if it points to this machine
-	 */
-	public static boolean isThisMyIpAddress(InetAddress addr) {
-	    // Check if the address is a valid special local or loop back
-	    if (addr.isAnyLocalAddress() || addr.isLoopbackAddress())
-	        return true;
-
-	    // Check if the address is defined on any interface
-	    try {
-	        return NetworkInterface.getByInetAddress(addr) != null;
-	    } catch (SocketException e) {
-	        return false;
-	    }
 	}
 	
 }
