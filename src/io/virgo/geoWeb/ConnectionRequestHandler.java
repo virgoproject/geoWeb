@@ -17,7 +17,7 @@ class ConnectionRequestHandler implements Runnable{
 			try {
 				Socket socket = GeoWeb.getInstance().getServer().accept();
 				String address = socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
-				if(!GeoWeb.getInstance().peers.containsKey(address)) {
+				if(!GeoWeb.getInstance().peers.containsKey(address) && !GeoWeb.getInstance().pendingPeers.containsKey(address)) {
 					new Thread(new Peer(socket, false)).start();
 				}
 			} catch (IOException e) {

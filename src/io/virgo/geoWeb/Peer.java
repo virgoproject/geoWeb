@@ -10,6 +10,8 @@ import java.nio.BufferUnderflowException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.LinkedBlockingQueue;
+
 import org.json.JSONObject;
 
 import io.virgo.geoWeb.events.PeerConnectionEvent;
@@ -26,13 +28,14 @@ public class Peer implements Runnable{
 
 	private Socket socket;
 	protected boolean sentHandshake = false;
-	protected boolean handshaked = false;
+	protected Boolean handshaked = false;
 	protected boolean canBroadcast = true;
 	private boolean listen = true;
 	protected boolean respondedToHeartbeat;
 	private String hostname;
 	private int port;
-	private OutputStream out;
+	
+	private LinkedBlockingQueue<byte[]> messageQueue = new LinkedBlockingQueue<byte[]>();
 	
 	private static byte[] JSON_MSG_IDENTIFIER = new byte[] {(byte) 0x05};
 	private static byte[] DATA_MSG_IDENTIFIER = new byte[] {(byte) 0x02};
@@ -48,17 +51,7 @@ public class Peer implements Runnable{
 		try {
 			socket.setReceiveBufferSize(2048);
 			socket.setSendBufferSize(2048);
-		} catch (SocketException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-
-		try {
-			out = socket.getOutputStream();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		} catch (SocketException e) {}
 		
 		if(initHandshake) {
 			sendHandshake();
@@ -68,7 +61,7 @@ public class Peer implements Runnable{
 		
 		GeoWeb.getInstance().getEventListener().notify(new PeerConnectionEvent(this));
 	}
-	
+
 	/**
 	 * Listen to input stream and try to parse messages from it
 	 * First Byte of a message is it's type, either JSON or Data request
@@ -148,11 +141,30 @@ public class Peer implements Runnable{
 				
 			}
 			
-			in.close();
-			
 		} catch (IOException | BufferUnderflowException e) {}
 		
 		end();
+	}
+	
+	protected void startOutputWriter() {
+		
+		new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				
+				try {
+					OutputStream out = socket.getOutputStream();
+					
+					while(listen)
+						out.write(messageQueue.take());
+					
+				} catch (IOException | InterruptedException e) {}
+				
+			}
+			
+		}).start();
+		
 	}
 
 	public String getEffectiveAddress() {
@@ -175,30 +187,26 @@ public class Peer implements Runnable{
 		
 		byte[] msgBytes = message.toString().getBytes();
 		
-		try {
-			out.write(JSON_MSG_IDENTIFIER);
-			out.write(Miscellaneous.intToBytes(msgBytes.length));
-			out.write(msgBytes);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-			
+		messageQueue.add(Miscellaneous.concatBytesArrays(
+				JSON_MSG_IDENTIFIER,
+				Miscellaneous.intToBytes(msgBytes.length),
+				msgBytes
+				));
+		
 	}
 	
 	/**
 	 * Output data to peer to respond to data request, please use DataRequestedEvent.uploadData(byte[] data) instead
 	 */
 	public void sendData(byte[] data, byte[] hash) {
-		try {
-			out.write(DATA_MSG_IDENTIFIER);
-			out.write(Miscellaneous.intToBytes(data.length));
-			out.write(hash);
-			out.write(data);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		
+		messageQueue.add(Miscellaneous.concatBytesArrays(
+				DATA_MSG_IDENTIFIER,
+				Miscellaneous.intToBytes(data.length),
+				hash,
+				data
+				));
+		
 	}
 	
 	/**
@@ -215,7 +223,19 @@ public class Peer implements Runnable{
 		
 		netIdMessage.put("port", GeoWeb.getInstance().getPort());
 		
-		sendMessage(netIdMessage);
+		try {
+			OutputStream out = socket.getOutputStream();
+			byte[] msgBytes = netIdMessage.toString().getBytes();
+			out.write(Miscellaneous.concatBytesArrays(
+				JSON_MSG_IDENTIFIER,
+				Miscellaneous.intToBytes(msgBytes.length),
+				msgBytes
+				));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		sentHandshake = true;
 	}
 	
 	/**
@@ -320,23 +340,14 @@ public class Peer implements Runnable{
 	 * End connection to peer
 	 */
 	public void end() {
-		
 		listen = false;
-		try {
-			out.close();
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		
-		GeoWeb.getInstance().peers.remove(getEffectiveAddress());
-		GeoWeb.getInstance().pendingPeers.remove(getEffectiveAddress());
 		
 		try {
 			socket.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		} catch (IOException e) {}
+		
+		GeoWeb.getInstance().peers.remove(getEffectiveAddress());
+		GeoWeb.getInstance().pendingPeers.remove(getEffectiveAddress());
 		
 		GeoWeb.getInstance().getEventListener().notify(new PeerDisconnectionEvent(this));
 	}

@@ -2,6 +2,7 @@ package io.virgo.geoWeb;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +25,6 @@ import io.virgo.geoWeb.events.EventListener;
 import io.virgo.geoWeb.events.SetupCompleteEvent;
 import io.virgo.geoWeb.exceptions.PortUnavailableException;
 import io.virgo.geoWeb.utils.AddressUtils;
-import io.virgo.geoWeb.utils.PeerListManager;
 
 /**
  * Virgo's Peer to Peer communication library
@@ -40,18 +41,19 @@ public class GeoWeb {
 	private long syncMessageTimeout;
 	private long messageThreadKeepAliveTime;
 	private int maxMessageThreadPoolSize;
+	private int socketConnectionTimeout;
 	private String hostname;
 	
 	private String id;
 	
 	private ServerSocket server;
 	private MessageHandler messageHandler;
-	protected HashMap<String, Peer> peers = new HashMap<String, Peer>();
-	protected HashMap<String, Peer> pendingPeers = new HashMap<String, Peer>();
+	protected ConcurrentHashMap<String, Peer> peers = new ConcurrentHashMap<String, Peer>();
+	protected ConcurrentHashMap<String, Peer> pendingPeers = new ConcurrentHashMap<String, Peer>();
 	protected ArrayList<String> blockedPeers = new ArrayList<String>();
 	private int peerCountTarget;
-	private PeerListManager peerListManager;
 	private EventListener eventsListener;
+	private PeersCountWatchdog peersCountWatchDog;
 	
 	private ThreadPoolExecutor messageThreadPool;
 	public ArrayList<Thread> threads = new ArrayList<Thread>();
@@ -76,6 +78,7 @@ public class GeoWeb {
 		this.syncMessageTimeout = builder.syncMessageTimeout;
 		this.messageThreadKeepAliveTime = builder.messageThreadKeepAliveTime;
 		this.maxMessageThreadPoolSize = builder.maxMessageThreadPoolSize;
+		this.socketConnectionTimeout = builder.socketConnectionTimeout;
 		this.hostname = builder.hostname;
 		
 		//generate a unique ID for this geoWeb session, will serve to know when we try to connect to ourselves
@@ -84,15 +87,15 @@ public class GeoWeb {
 		messageThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxMessageThreadPoolSize);
 		messageThreadPool.setKeepAliveTime(messageThreadKeepAliveTime, TimeUnit.MILLISECONDS);
 		
-		peerListManager = new PeerListManager();
-		
 		server = new ServerSocket(port);
 		
 		Thread connectionRequestsThread = new Thread(new ConnectionRequestHandler());
 		connectionRequestsThread.start();
 		threads.add(connectionRequestsThread);
 		
-		Thread peersCountWatchdogThread = new Thread(new PeersCountWatchdog());
+		peersCountWatchDog = new PeersCountWatchdog();
+		
+		Thread peersCountWatchdogThread = new Thread(peersCountWatchDog);
 		peersCountWatchdogThread.start();
 		threads.add(peersCountWatchdogThread);
 		
@@ -119,18 +122,13 @@ public class GeoWeb {
 
 					@Override
 					public void run() {
-						
-						Map<String, Peer> peersMap = Collections.synchronizedMap(peers);
-						
-						for(Peer peer : peersMap.values()) {
-						
-							if(peer.respondedToHeartbeat && peer.handshaked) {
+
+						for(Peer peer : peers.values())
+							if(peer.respondedToHeartbeat && peer.handshaked)
 								peer.respondedToHeartbeat = false;
-							} else {
+							else
 								peer.end();
-							}
 							
-						}
 					}
 					
 				}, keepAliveTimeout);
@@ -178,23 +176,18 @@ public class GeoWeb {
 	 */
 	public boolean connectTo(String hostname, int port) {
 		
-		System.out.println("trying to connect to " + hostname + ":" + port);
-		
 		if(blockedPeers.contains(hostname+":"+port))
 			return false;
-		
-		System.out.println("connecting");
 		
 		try {
 			String address = InetAddress.getByName(hostname).getHostAddress() + ":" + port;
 			if(!peers.containsKey(address) && !pendingPeers.containsKey(address)) {
-				Socket socket = new Socket(InetAddress.getByName(hostname), port);
+				Socket socket = new Socket();
+				socket.connect(new InetSocketAddress(InetAddress.getByName(hostname), port), socketConnectionTimeout);
 				new Thread(new Peer(socket, true)).start();
-				return true;
 			}
-			return false;
+			return true;
 		} catch (IOException e) {
-			getPeerListManager().retrograde(hostname+":"+port);
 			return false;
 		}
 		
@@ -214,9 +207,7 @@ public class GeoWeb {
 	public ArrayList<String> getCurrentPeersAddresses(List<Peer> peersToIgnore) {
 		ArrayList<String> addresses = new ArrayList<String>();
 		
-		Map<String, Peer> peersMap = Collections.synchronizedMap(peers);//should avoid concurrent access
-		
-		for(Peer peer : peersMap.values()) {
+		for(Peer peer : peers.values()) {
 			if(!peersToIgnore.contains(peer)) {
 				addresses.add(peer.getEffectiveAddress());
 			}
@@ -226,7 +217,7 @@ public class GeoWeb {
 	}
 	
 	public ArrayList<Peer> getPeers() {
-		return new ArrayList<Peer>(Collections.synchronizedMap(peers).values());
+		return new ArrayList<Peer>(peers.values());
 	}
 	
 	/**
@@ -238,9 +229,7 @@ public class GeoWeb {
 	 * otherwise it will be ignored by peers
 	 */
 	public void broadCast(JSONObject message) {
-		
-		Collection<Peer> peersList = Collections.synchronizedMap(peers).values();//should avoid concurrent access
-		broadCast(message, peersList);
+		broadCast(message, peers.values());
 	}
 	
 	/**
@@ -253,8 +242,8 @@ public class GeoWeb {
 	 * otherwise it will be ignored by peers
 	 */
 	public void broadCast(JSONObject message, List<Peer> peersToIgnore) {
-		
-		Collection<Peer> peersList = Collections.synchronizedMap(peers).values();
+
+		Collection<Peer> peersList = getPeers();
 		peersList.removeAll(peersToIgnore);
 		
 		broadCast(message, peersList);
@@ -331,9 +320,9 @@ public class GeoWeb {
 	public MessageHandler getMessageHandler() {
 		return messageHandler;
 	}
-
-	public PeerListManager getPeerListManager() {
-		return peerListManager;
+	
+	public PeersCountWatchdog getPeersCountWatchDog() {
+		return peersCountWatchDog;
 	}
 
 	public int getPeerCountTarget() {
@@ -467,6 +456,7 @@ public class GeoWeb {
 		private long syncMessageTimeout = 60000L;
 		private long messageThreadKeepAliveTime = 60000L;
 		private int maxMessageThreadPoolSize = 10;
+		private int socketConnectionTimeout = 10000;
 		private String hostname = "";
 		private MessageHandler messageHandler = null;
 		private EventListener eventsListener = null;
@@ -553,6 +543,15 @@ public class GeoWeb {
 				throw new IllegalArgumentException("maxMessageThreadPoolSize must be > 0");
 			
 			this.maxMessageThreadPoolSize = maxMessageThreadPoolSize;
+			
+			return this;
+		}
+		
+		public Builder socketConnectionTimeout(int socketConnectionTimeout) {
+			if(socketConnectionTimeout < 1000)
+				throw new IllegalArgumentException("socketConnectionTimeout must be >= 1000");
+			
+			this.socketConnectionTimeout = socketConnectionTimeout;
 			
 			return this;
 		}

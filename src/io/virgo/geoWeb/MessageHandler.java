@@ -54,9 +54,14 @@ public class MessageHandler {
 					return;
 				}
 				
-				//add peer to list of active ones
-				GeoWeb.getInstance().getPeerListManager().addPeer(peer.getAddress(), 0);
+				//update peer score
+				GeoWeb.getInstance().getPeersCountWatchDog().updatePeerScore(peer.getAddress(), 1);
+				
 				peer.handshaked = true;
+				
+				//start to send messages to peer
+				peer.startOutputWriter();
+				
 				peer.respondedToHeartbeat = true;//in case a heartbeat as been sent during setup
 				
 				//Exclude peer from broadcast if it wants to
@@ -78,6 +83,7 @@ public class MessageHandler {
 	
 				case "getaddr"://peer is asking for current peer list
 					ArrayList<String> peers = GeoWeb.getInstance().getCurrentPeersAddresses();
+					peers.remove(peer.getEffectiveAddress());
 					if(!peers.isEmpty()) {
 						JSONObject response = new JSONObject();	
 						response.put("command", "addr");
@@ -97,12 +103,10 @@ public class MessageHandler {
 						String peerAddress = addresses.getString(i);
 						if(AddressUtils.isValidHostnameAndPort(peerAddress)) {
 							String[] peerAddressArray = peerAddress.split(":");
-							if(GeoWeb.getInstance().peers.size() < GeoWeb.getInstance().getPeerCountTarget() && !GeoWeb.getInstance().peers.containsKey(peerAddress)) {
+							if(GeoWeb.getInstance().peers.size() < GeoWeb.getInstance().getPeerCountTarget() && !GeoWeb.getInstance().peers.containsKey(peerAddress) && !GeoWeb.getInstance().pendingPeers.containsKey(peerAddress))
 								GeoWeb.getInstance().connectTo(peerAddressArray[0], Integer.parseInt(peerAddressArray[1]));
-								GeoWeb.getInstance().getPeerListManager().addPeer(peerAddress, 0);
-							} else {
-								GeoWeb.getInstance().getPeerListManager().addPeer(peerAddress, 1);
-							}
+							
+							GeoWeb.getInstance().getPeersCountWatchDog().addPossiblePeer(peerAddress, 0);
 						}
 						
 						if(messageJson.has("share") && messageJson.getBoolean("share"))
