@@ -7,10 +7,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
@@ -43,12 +40,14 @@ public class GeoWeb {
 	private int maxMessageThreadPoolSize;
 	private int socketConnectionTimeout;
 	private String hostname;
+	private boolean debug;
 	
 	private String id;
 	
 	private ServerSocket server;
 	private MessageHandler messageHandler;
 	protected ConcurrentHashMap<String, Peer> peers = new ConcurrentHashMap<String, Peer>();
+	protected ConcurrentHashMap<String, Peer> peersById = new ConcurrentHashMap<String, Peer>();
 	protected ConcurrentHashMap<String, Peer> pendingPeers = new ConcurrentHashMap<String, Peer>();
 	protected ArrayList<String> blockedPeers = new ArrayList<String>();
 	private int peerCountTarget;
@@ -80,6 +79,7 @@ public class GeoWeb {
 		this.maxMessageThreadPoolSize = builder.maxMessageThreadPoolSize;
 		this.socketConnectionTimeout = builder.socketConnectionTimeout;
 		this.hostname = builder.hostname;
+		this.debug = builder.debug;
 		
 		//generate a unique ID for this geoWeb session, will serve to know when we try to connect to ourselves
 		id = UUID.randomUUID().toString();
@@ -416,6 +416,14 @@ public class GeoWeb {
 		this.hostname = hostname;
 	}
 	
+	public void debug(boolean debug) {
+		this.debug = debug;
+	}
+	
+	public boolean debugEnabled() {
+		return debug;
+	}
+	
 	/**
 	 * Check if given IP address and port correspond to this geoWeb instance
 	 * @param host IP address to check
@@ -456,10 +464,11 @@ public class GeoWeb {
 		private long syncMessageTimeout = 60000L;
 		private long messageThreadKeepAliveTime = 60000L;
 		private int maxMessageThreadPoolSize = 10;
-		private int socketConnectionTimeout = 10000;
+		private int socketConnectionTimeout = 5000;
 		private String hostname = "";
 		private MessageHandler messageHandler = null;
 		private EventListener eventsListener = null;
+		private boolean debug = false;
 		
 		public GeoWeb build() throws IOException {
 			
@@ -574,6 +583,12 @@ public class GeoWeb {
 		public Builder eventListener(EventListener eventListener) {
 			this.eventsListener = eventListener;
 		
+			return this;
+		}
+		
+		public Builder debug(boolean debug) {
+			this.debug = debug;
+			
 			return this;
 		}
 		

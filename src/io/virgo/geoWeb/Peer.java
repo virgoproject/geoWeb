@@ -34,6 +34,7 @@ public class Peer implements Runnable{
 	protected boolean respondedToHeartbeat;
 	private String hostname;
 	private int port;
+	protected String id = "";
 	
 	private LinkedBlockingQueue<byte[]> messageQueue = new LinkedBlockingQueue<byte[]>();
 	
@@ -336,6 +337,10 @@ public class Peer implements Runnable{
 		return port;
 	}
 	
+	public String getId() {
+		return id;
+	}
+	
 	/**
 	 * End connection to peer
 	 */
@@ -347,6 +352,7 @@ public class Peer implements Runnable{
 		} catch (IOException e) {}
 		
 		GeoWeb.getInstance().peers.remove(getEffectiveAddress());
+		GeoWeb.getInstance().peersById.remove(getId());
 		GeoWeb.getInstance().pendingPeers.remove(getEffectiveAddress());
 		
 		GeoWeb.getInstance().getEventListener().notify(new PeerDisconnectionEvent(this));

@@ -18,6 +18,9 @@ public class MessageHandler {
 	//non-overrideable on-message logic
 	final void superOnMessage(String message, Peer peer) {
 		
+		if(GeoWeb.getInstance().debugEnabled())
+			System.out.println(message);
+		
 		try {
 			
 			JSONObject messageJson = new JSONObject(message);
@@ -44,7 +47,8 @@ public class MessageHandler {
 				
 				//check if peer has the same session ID as us, if so end connection because we're probably try to connect to ourselves
 				if(messageJson.has("id")) {
-					if(messageJson.getString("id").equals(GeoWeb.getInstance().getId())) {
+					peer.id = messageJson.getString("id");
+					if(peer.getId().equals(GeoWeb.getInstance().getId()) || GeoWeb.getInstance().peersById.containsKey(peer.getId())) {
 						GeoWeb.getInstance().blockedPeers.add(peer.getEffectiveAddress());
 						peer.end();
 						return;
@@ -74,6 +78,7 @@ public class MessageHandler {
 				
 				//add peer to list of ready ones
 				GeoWeb.getInstance().peers.put(peer.getEffectiveAddress(), peer);
+				GeoWeb.getInstance().peersById.put(peer.getId(), peer);
 				
 				GeoWeb.getInstance().getEventListener().notify(new PeerHandshakedEvent(peer));
 				
