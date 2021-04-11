@@ -75,11 +75,8 @@ class PeersCountWatchdog implements Runnable {
 		while(!Thread.currentThread().isInterrupted()) {
 			try {
 				
-				if(peersByScore.size() == 0) {
+				if(peersByScore.size() == 0)
 					peersByScore = getPeersByScore();
-					Thread.sleep(1000);
-					continue;
-				}
 				
 				if(GeoWeb.getInstance().peers.size() >= GeoWeb.getInstance().getPeerCountTarget()) {
 					Thread.sleep(1000);
@@ -89,7 +86,6 @@ class PeersCountWatchdog implements Runnable {
 				String[] addressArray = peersByScore.get(currentIndex).split(":");
 
 				try {
-					
 					if(GeoWeb.getInstance().connectTo(addressArray[0], Integer.parseInt(addressArray[1])))
 						updatePeerScore(peersByScore.get(currentIndex), 1);
 					else
@@ -104,9 +100,8 @@ class PeersCountWatchdog implements Runnable {
 				if(currentIndex >= peersByScore.size()) {
 					currentIndex = 0;
 					peersByScore = getPeersByScore();
+					Thread.sleep(10000);
 				}
-				
-				Thread.sleep(1000);
 				
 			}catch(InterruptedException e){
 		        Thread.currentThread().interrupt(); // propagate interrupt
@@ -205,7 +200,7 @@ class PeersCountWatchdog implements Runnable {
 	 */
 	public ArrayList<String> getPeersByScore() {
 		List<Integer> values = new ArrayList<Integer>(possiblePeers.values());
-		Collections.sort(values);
+		Collections.sort(values, Collections.reverseOrder());
 		
 		List<String> keys = new ArrayList<String>(possiblePeers.keySet());
 		
