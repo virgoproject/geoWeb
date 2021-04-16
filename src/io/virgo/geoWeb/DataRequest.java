@@ -1,5 +1,7 @@
 package io.virgo.geoWeb;
 
+import java.io.ByteArrayInputStream;
+
 import io.virgo.virgoCryptoLib.Sha256;
 import io.virgo.virgoCryptoLib.Sha256Hash;
 
@@ -61,6 +63,15 @@ public class DataRequest {
 	 */
 	public Sha256Hash getHash() {
 		return dataHash;
+	}
+	
+	
+	public long getDataSize() {
+		return dataSize;
+	}
+	
+	public ByteArrayInputStream getDataInputStream() {
+		return new ByteArrayInputStream(data);
 	}
 	
 	/**

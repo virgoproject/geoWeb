@@ -75,8 +75,12 @@ class PeersCountWatchdog implements Runnable {
 		while(!Thread.currentThread().isInterrupted()) {
 			try {
 				
-				if(peersByScore.size() == 0)
+				if(peersByScore.size() <= 0) {
 					peersByScore = getPeersByScore();
+					Thread.sleep(1000);
+					continue;
+				}
+					
 				
 				if(GeoWeb.getInstance().peers.size() >= GeoWeb.getInstance().getPeerCountTarget()) {
 					Thread.sleep(1000);

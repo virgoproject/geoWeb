@@ -25,13 +25,11 @@ public class DataRequestedEvent extends Event {
 	/**
 	 * Give the requested data to the peer
 	 * @param data
-	 * @throws IllegalArgumentException Given data and requested data hashes doesn't match
 	 */
 	public void uploadData(byte[] data) {
-		if(!Sha256.getHash(data).equals(request.getHash()))
-			throw new IllegalArgumentException("Given data doesn't fit requested one");
 		
-		peer.sendData(data, hash.toBytes());
+		peer.sendData(data,
+				hash.toBytes());
 	}
 
 	/**

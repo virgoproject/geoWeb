@@ -134,6 +134,7 @@ public class Peer implements Runnable{
 						
 						recipient.finish();
 					}catch(IOException e) {
+						e.printStackTrace();
 						recipient.finish();
 					}
 					
@@ -306,6 +307,8 @@ public class Peer implements Runnable{
 		JSONObject reqMessage = new JSONObject();
 		reqMessage.put("command", "requestData");
 		reqMessage.put("hash", Converter.bytesToHex(dataReq.getHash().toBytes()));
+		
+		requestedData.put(dataReq.getHash(), dataReq);
 		
 		sendMessage(reqMessage);
 		
