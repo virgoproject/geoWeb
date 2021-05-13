@@ -84,16 +84,19 @@ public class GeoWeb {
 		//generate a unique ID for this geoWeb session, will serve to know when we try to connect to ourselves
 		id = UUID.randomUUID().toString();
 		
+		//Initialize thread pool that will handle messages
 		messageThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxMessageThreadPoolSize);
 		messageThreadPool.setKeepAliveTime(messageThreadKeepAliveTime, TimeUnit.MILLISECONDS);
 		
 		server = new ServerSocket(port);
 		
+		//Initialize a thread that will handle connection requests
 		Thread connectionRequestsThread = new Thread(new ConnectionRequestHandler());
 		connectionRequestsThread.start();
 		threads.add(connectionRequestsThread);
 		
 		peersCountWatchDog = new PeersCountWatchdog();
+		
 		
 		Thread peersCountWatchdogThread = new Thread(peersCountWatchDog);
 		peersCountWatchdogThread.start();
@@ -423,22 +426,6 @@ public class GeoWeb {
 	public boolean debugEnabled() {
 		return debug;
 	}
-	
-	/**
-	 * Check if given IP address and port correspond to this geoWeb instance
-	 * @param host IP address to check
-	 * @param port Port to check
-	 * @return <b>true</b> if given IP address and port correspond to this geoWeb instance, otherwise <b>false</b>
-	 */
-	/**public boolean isSelf(String host, int port) {
-		try {
-			System.out.println("Is self "+host+":"+port+" ? " + AddressUtils.isThisMyIpAddress(InetAddress.getByName(host)) + " " + (port == getPort()));
-			return AddressUtils.isThisMyIpAddress(InetAddress.getByName(host)) && port == getPort();
-		} catch (UnknownHostException e) {
-			System.out.println(e.getMessage());
-			return false;
-		}
-	}*/
 	
 	/**
 	 * New geoWeb instance builder
