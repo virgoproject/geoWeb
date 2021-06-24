@@ -96,6 +96,8 @@ class PeersCountWatchdog implements Runnable {
 						updatePeerScore(peersByScore.get(currentIndex), -1);
 					
 				}catch(NumberFormatException e) {
+					if(GeoWeb.getInstance().debugEnabled())
+						e.printStackTrace();
 					possiblePeers.remove(peersByScore.get(currentIndex));
 				}
 				
@@ -135,6 +137,8 @@ class PeersCountWatchdog implements Runnable {
 						JSONObject possiblePeer = peersArray.getJSONObject(i);
 						addPossiblePeer(possiblePeer.getString("host"), possiblePeer.getInt("score"));
 					}catch(JSONException e) {
+						if(GeoWeb.getInstance().debugEnabled())
+							e.printStackTrace();
 						//re-catch JSONException so we continue reading through array and maybe get valid peers
 					}
 
@@ -142,6 +146,8 @@ class PeersCountWatchdog implements Runnable {
 				}
 				
 			}catch(JSONException e) {
+				if(GeoWeb.getInstance().debugEnabled())
+					e.printStackTrace();
 				//we'll save peers in a valid format on shutdown
 			}
 			

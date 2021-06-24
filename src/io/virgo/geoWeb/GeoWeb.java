@@ -178,6 +178,8 @@ public class GeoWeb {
 	 * @return true if connected, false otherwise
 	 */
 	public boolean connectTo(String hostname, int port) {
+		if(debugEnabled())
+			System.out.println("connecting to " + hostname + ":" + port);
 		
 		if(blockedPeers.contains(hostname+":"+port))
 			return false;
@@ -186,7 +188,12 @@ public class GeoWeb {
 			String address = InetAddress.getByName(hostname).getHostAddress() + ":" + port;
 			if(!peers.containsKey(address) && !pendingPeers.containsKey(address)) {
 				Socket socket = new Socket();
-				socket.connect(new InetSocketAddress(InetAddress.getByName(hostname), port), socketConnectionTimeout);
+				String host = InetAddress.getByName(hostname).getHostAddress();
+				
+				if(debugEnabled())
+					System.out.println("resolved to " + host + ":" + port);
+				
+				socket.connect(new InetSocketAddress(host, port), socketConnectionTimeout);
 				new Thread(new Peer(socket, true)).start();
 			}
 			return true;

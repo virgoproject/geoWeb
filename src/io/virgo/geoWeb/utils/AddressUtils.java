@@ -14,7 +14,7 @@ public class AddressUtils {
 	 */
 	public static boolean isValidHostname(String hostname) {
         Pattern p = Pattern.compile("^"
-                + "(((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}" // Domain name
+                + "(((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,}" // Domain name
                 + "|"
                 + "localhost" // localhost
                 + "|"
